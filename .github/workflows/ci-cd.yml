@@ -1,0 +1,80 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18.x
+        cache: 'npm'
+
+    - name: Install and Build Server
+      working-directory: ./server
+      run: |
+        npm ci
+        npm run build --if-present
+
+    - name: Install and Build Client
+      working-directory: ./client
+      run: |
+        npm ci
+        npm run build
+
+    - name: Upload Client Build
+      uses: actions/upload-artifact@v3
+      with:
+        name: client-build
+        path: client/build/
+
+    - name: Upload Server Build
+      uses: actions/upload-artifact@v3
+      with:
+        name: server-build
+        path: server/
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Install Server Dependencies
+      working-directory: ./server
+      run: npm ci
+
+    - name: Run Server Tests
+      working-directory: ./server
+      run: npm test
+
+    - name: Install Client Dependencies
+      working-directory: ./client
+      run: npm ci
+
+    - name: Run Client Tests
+      working-directory: ./client
+      run: npm test -- --watchAll=false

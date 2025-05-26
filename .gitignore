@@ -1,0 +1,38 @@
+# Node
+node_modules/
+.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+build/
+dist/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# React
+client/node_modules/
+client/build/
+
+# Misc
+*.local
+coverage/
+
+# Ignore test coverage
+coverage/
+
+# Ignore environment files
+.env.*
+
+# Ignore server logs
+server/logs/

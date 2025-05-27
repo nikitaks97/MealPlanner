@@ -1,4 +1,4 @@
-name: build and deploy client and server using CI/CD
+name: build and deploy client and server using CI/CD pipeline
 
 on:
   push:

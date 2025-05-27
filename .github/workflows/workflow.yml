@@ -1,4 +1,5 @@
 name: build and deploy client and server using CI/CD
+
 on:
   push:
     branches:
@@ -6,205 +7,226 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-     - name: Checkout code
-       uses: actions/checkout@v4
-     - name: Set up Node.js
-       uses: actions/setup-node@v4
-       with:
-            node-version: '18.x'
-     - name: Install dependencies client
-       working-directory: ./client
-       run: |
-            npm ci
-            npm run build --if-present
-     - name: cache client dependencies
-       uses: actions/cache@v4
-       with: 
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          
+      - name: Install dependencies client
+        working-directory: ./client
+        run: |
+          npm install
+          npm run build --if-present
+          
+      - name: cache client dependencies
+        uses: actions/cache@v4
+        with: 
           key: ${{ runner.os }}-client-deps-${{ hashFiles('**/client/package-lock.json') }}
           path: ./client
           restore-keys: ${{ runner.os }}-client-deps-*
-     - name: Install dependencies server 
-       working-directory: ./server
-       run: |
-            npm ci
-            npm run build --if-present
-     - name: cache server dependencies
-       uses: actions/cache@v4
-       with: 
+          
+      - name: Install dependencies server 
+        working-directory: ./server
+        run: |
+          npm install
+          npm run build --if-present
+          
+      - name: cache server dependencies
+        uses: actions/cache@v4
+        with: 
           key: ${{ runner.os }}-server-deps-${{ hashFiles('**/server/package-lock.json') }}
           path: ./server
           restore-keys: ${{ runner.os }}-server-deps-*
-     - name: Upload Client Build
-       uses: actions/upload-artifact@v4
-       with:
-            name: client-build       
-            path: ./client/build/
-     - name: Upload Server Build
-       uses: actions/upload-artifact@v4
-       with:
-            path: ./server/build/
-            name: server-build
+          
+      - name: Upload Client Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-build       
+          path: ./client/build/
+          
+      - name: Upload Server Build
+        uses: actions/upload-artifact@v4
+        with:
+          path: ./server/build/
+          name: server-build
+
   test:
     needs: build
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-        - name: Set up Node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: '18.x'
-        - name: Install dependencies
-          working-directory: ./server
-          run: |
-            npm ci
-        - name: Run Server Tests
-          working-directory: ./server
-          run: |
-            npm test --if-present        
-        - name: Run Client Tests
-          working-directory: ./client
-          run: |
-            npm test --if-present
-        - name: Download Client Build
-          uses: actions/download-artifact@v4
-          with:
-            name: client-build
-            path: ./client/build/
-        - name: Download Server Build
-          uses: actions/download-artifact@v4
-          with:
-            name: server-build
-            path: ./server/build/
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          
+      - name: Install dependencies
+        working-directory: ./server
+        run: |
+          npm install
+          
+      - name: Run Server Tests
+        working-directory: ./server
+        run: |
+          npm test --if-present
+          
+      - name: Run Client Tests
+        working-directory: ./client
+        run: |
+          npm test --if-present
+          
+      - name: Download Client Build
+        uses: actions/download-artifact@v4
+        with:
+          name: client-build
+          path: ./client/build/
+          
+      - name: Download Server Build
+        uses: actions/download-artifact@v4
+        with:
+          name: server-build
+          path: ./server/build/
+
   deploy:
     runs-on: ubuntu-latest
     needs: test
     steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         
-        - name: Configure AWS credentials
-          uses: aws-actions/configure-aws-credentials@v4
-          with:
-            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
         
-        - name: Setup SSH key
-          run: |
-            mkdir -p ~/.ssh
-            echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
-            ssh-keyscan -H ${{ secrets.EC2_IP }} >> ~/.ssh/known_hosts
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_IP }} >> ~/.ssh/known_hosts
         
-        - name: Deploy to EC2
-          run: |
-            ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
-              # Update system packages
-              sudo yum update -y
-              
-              Install Docker if not already installed
-              if ! command -v docker &> /dev/null; then
-                sudo yum install -y docker
-                sudo systemctl start docker
-                sudo systemctl enable docker
-                sudo usermod -a -G docker $USER
-              fi
-              
-              Install Docker Compose if not already installed
-              if ! command -v docker-compose &> /dev/null; then
-                sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                sudo chmod +x /usr/local/bin/docker-compose
-              fi
-              
-              # Create application directory
-              mkdir -p ~/mealplanner-app
-              cd ~/mealplanner-app
-              
-              # Stop and remove existing containers
-              if [ -f docker-compose.yml ]; then
-                docker-compose down || true
-              fi
-              
-              # Clean up old images
-              docker system prune -f || true
-            EOF
-        
-        - name: Copy application files to EC2
-          run: |
-            # Copy ./docker-compose.yml
-            scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.yml ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}:~/mealplanner-app/
+      - name: Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
+            # Update system packages
+            sudo yum update -y
             
-            # Copy server files
-            scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -r server/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}:~/mealplanner-app/
+            # Install Docker if not already installed
+            if ! command -v docker &> /dev/null; then
+              sudo yum install -y docker
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -a -G docker $USER
+            fi
             
-            # Copy client files
-            scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -r client/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}:~/mealplanner-app/
+            # Install Docker Compose if not already installed
+            if ! command -v docker-compose &> /dev/null; then
+              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            fi
+            
+            # Create application directory
+            mkdir -p ~/mealplanner-app
+            cd ~/mealplanner-app
+            
+            # Stop and remove existing containers
+            if [ -f docker-compose.yml ]; then
+              docker-compose down || true
+            fi
+            
+            # Clean up old images
+            docker system prune -f || true
+          EOF
         
-        - name: Start application on EC2
-          run: |
-            ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
-              cd ~/mealplanner-app
-              
-              # Build and start containers
-              docker-compose up --build -d
-              
-              # Wait for containers to be healthy
-              echo "Waiting for containers to start..."
-              sleep 30
-              
-              # Check container status
-              docker-compose ps
-              
-              # Test if application is running
-              if curl -f http://localhost:5000/health > /dev/null 2>&1; then
-                echo "✅ Server is healthy and running"
-              else
-                echo "❌ Server health check failed"
-                docker-compose logs server
-                exit 1
-              fi
-              
-              if curl -f http://localhost:3000 > /dev/null 2>&1; then
-                echo "✅ Client is running"
-              else
-                echo "❌ Client health check failed"
-                docker-compose logs client
-                exit 1
-              fi
-              
-              echo "🚀 Deployment completed successfully!"
-              echo "Server available at: http://${{ secrets.EC2_IP }}:5000"
-              echo "Client available at: http://${{ secrets.EC2_IP }}:3000"
-            EOF
+      - name: Copy application files to EC2
+        run: |
+          # Copy docker-compose.yml
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.yml ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}:~/mealplanner-app/
+          
+          # Copy server files
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -r server/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}:~/mealplanner-app/
+          
+          # Copy client files
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -r client/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }}:~/mealplanner-app/
         
+      - name: Start application on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
+            cd ~/mealplanner-app
+            
+            # Build and start containers
+            docker-compose up --build -d
+            
+            # Wait for containers to be healthy
+            echo "Waiting for containers to start..."
+            sleep 30
+            
+            # Check container status
+            docker-compose ps
+            
+            # Test if application is running
+            if curl -f http://localhost:5000/health > /dev/null 2>&1; then
+              echo "✅ Server is healthy and running"
+            else
+              echo "❌ Server health check failed"
+              docker-compose logs server
+              exit 1
+            fi
+            
+            if curl -f http://localhost:3000 > /dev/null 2>&1; then
+              echo "✅ Client is running"
+            else
+              echo "❌ Client health check failed"
+              docker-compose logs client
+              exit 1
+            fi
+            
+            echo "🚀 Deployment completed successfully!"
+            echo "Server available at: http://${{ secrets.EC2_IP }}:5000"
+            echo "Client available at: http://${{ secrets.EC2_IP }}:3000"
+          EOF
+
   sonarqube:
     runs-on: ubuntu-latest
     needs: test
     steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-        - name: Set up Node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: '18.x'
-        - name: SonarQube Scan
-          env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-            SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          run: |
-            npm install -g sonarqube-scanner
-            sonar-scanner \
-              -Dsonar.projectKey=nikitaks97_MealPlanner \
-              -Dsonar.sources=. \
-              -Dsonar.organization=nikitaks97 \
-              -Dsonar.host.url=$SONAR_HOST_URL \
-              -Dsonar.login=$SONAR_TOKEN
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          
+      - name: SonarQube Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          npm install -g sonarqube-scanner
+          sonar-scanner \
+            -Dsonar.projectKey=nikitaks97_MealPlanner \
+            -Dsonar.sources=. \
+            -Dsonar.organization=nikitaks97 \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.login=$SONAR_TOKEN
+          echo "SonarQube scan completed successfully!"
+      
+           
     
         
         

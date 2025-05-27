@@ -1,14 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
-
-// Serve static files from the React build directory
-app.use(express.static(path.join(__dirname, '../client/build')));
 
 // In-memory data for demo
 let meals = [];
@@ -55,9 +51,42 @@ app.post('/api/shopping-list', (req, res) => {
   res.status(201).json(item);
 });
 
-// Serve React App for any other routes
+// Delete endpoints
+app.delete('/api/meals/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  meals = meals.filter(meal => meal.id !== id);
+  res.status(204).send();
+});
+
+app.delete('/api/recipes/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  recipes = recipes.filter(recipe => recipe.id !== id);
+  res.status(204).send();
+});
+
+app.delete('/api/shopping-list/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  shoppingLists = shoppingLists.filter(item => item.id !== id);
+  res.status(204).send();
+});
+
+// Health check endpoint for Docker
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Root endpoint
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  res.json({ 
+    message: 'Meal Planner API Server',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      meals: '/api/meals',
+      recipes: '/api/recipes',
+      shoppingList: '/api/shopping-list'
+    }
+  });
 });
 
 app.listen(PORT, () => {

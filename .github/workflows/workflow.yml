@@ -141,7 +141,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
             # Update system packages
-            sudo apt-get update -y
+              #sudo apt-get update -y
             
             # Install Docker if not already installed
             if ! command docker --version &> /dev/null; then

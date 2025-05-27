@@ -219,7 +219,8 @@ jobs:
             # Check container status
             sudo docker-compose ps
             
-            # Test if application is running            if curl -f http://localhost:5000/health > /dev/null 2>&1; then
+            # Test if application is running            
+            if curl -f http://localhost:5000/health > /dev/null 2>&1; then
               echo "✅ Server is healthy and running"
             else
               echo "❌ Server health check failed"

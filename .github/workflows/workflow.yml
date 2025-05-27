@@ -11,17 +11,17 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Set up Node.js
+      - name: Set up Node.js 
         uses: actions/setup-node@v4
         with:
           node-version: '18.x'
           
-      - name: Cache dependencies
+      - name: Cache dependencies 
         uses: actions/cache@v4
         with: 
           key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
@@ -136,7 +136,8 @@ jobs:
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # Add SSH key scanning with retry logic          for i in {1..3}; do
+          # Add SSH key scanning with retry logic
+          for i in {1..3}; do
             if ssh-keyscan -H ${{ secrets.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null; then
               echo "SSH key scan successful"
               break
@@ -145,6 +146,7 @@ jobs:
               sleep 5
             fi
           done
+        
       - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
@@ -204,7 +206,8 @@ jobs:
         
       - name: Start application on EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'            cd ~/mealplanner-app
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
+            cd ~/mealplanner-app
             
             # Build and start containers using sudo
             sudo docker-compose up --build -d
@@ -216,9 +219,9 @@ jobs:
             # Check container status
             sudo docker-compose ps
             
-            # Test if application is running
-            if curl -f http://localhost:5000/health > /dev/null 2>&1; then
-              echo "✅ Server is healthy and running"            else
+            # Test if application is running            if curl -f http://localhost:5000/health > /dev/null 2>&1; then
+              echo "✅ Server is healthy and running"
+            else
               echo "❌ Server health check failed"
               sudo docker-compose logs server
               exit 1
@@ -229,9 +232,9 @@ jobs:
             else
               echo "❌ Client health check failed"
               sudo docker-compose logs client
-              exit 1
-            fi
-              echo "🚀 Deployment completed successfully!"
+              exit 1            fi
+            
+            echo "🚀 Deployment completed successfully!"
             echo "Server available at: http://${{ secrets.EC2_IP }}:5000"
             echo "Client available at: http://${{ secrets.EC2_IP }}:3000"
           EOF

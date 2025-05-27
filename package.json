@@ -5,8 +5,7 @@
   "workspaces": [
     "client",
     "server"
-  ],
-  "scripts": {
+  ],  "scripts": {
     "start": "concurrently \"npm run start:server\" \"npm run start:client\"",
     "start:client": "npm run start --workspace=client",
     "start:server": "npm run start --workspace=server",
@@ -14,6 +13,8 @@
     "build:client": "npm run build --workspace=client",
     "build:server": "if not exist dist mkdir dist && xcopy /E /I /Y server dist",
     "test": "npm run test --workspaces --if-present",
+    "test:server": "npm run test --workspace=server",
+    "test:client": "npm run test --workspace=client",
     "install:all": "npm install && npm install --workspace=client && npm install --workspace=server"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 name: build and deploy client and server using CI/CD pipeline
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main

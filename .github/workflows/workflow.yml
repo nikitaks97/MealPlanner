@@ -222,23 +222,23 @@ jobs:
             # Wait for containers to start
             echo "Waiting for containers to start..."
             sleep 30
-            
-            # Check container status
+              # Check container status
             sudo docker-compose ps
             
-            # Test if application is running            
+            # Simple health checks
+            echo "Testing server health..."
             if curl -f http://localhost:5000/health > /dev/null 2>&1; then
-              echo "✅ Server is healthy and running"
+              echo "✅ Server is healthy"
             else
               echo "❌ Server health check failed"
-              sudo docker-compose logs server
               exit 1
             fi
             
+            echo "Testing client connectivity..."
             if curl -f http://localhost:3000 > /dev/null 2>&1; then
-              echo "✅ Client is running"            else
+              echo "✅ Client is accessible"
+            else
               echo "❌ Client health check failed"
-              sudo docker-compose logs client
               exit 1
             fi
             

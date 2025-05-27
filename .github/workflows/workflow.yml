@@ -130,7 +130,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-        
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -142,12 +141,11 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
             # Update system packages
-            sudo yum update -y
+            sudo apt-get update -y
             
             # Install Docker if not already installed
             if ! command docker --version &> /dev/null; then
-              sudo apt-get update
-              sudo apt-get install ca-certificates curl
+              sudo apt-get install -y ca-certificates curl
               sudo install -m 0755 -d /etc/apt/keyrings
               sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
               sudo chmod a+r /etc/apt/keyrings/docker.asc
@@ -157,26 +155,46 @@ jobs:
                 "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
                 $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
                 sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              sudo apt-get update
-
+              sudo apt-get update -y
+              
+              # Install Docker packages
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+              
+              # Start Docker service
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              
+              # Add current user to docker group
+              sudo usermod -aG docker $USER
+              
+              echo "Docker installation completed"
             fi
             
-            # Install Docker Compose if not already installed
-            if ! command docker-compose --version &> /dev/null; then
-             sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            # Start Docker service if not running
+            if ! sudo systemctl is-active --quiet docker; then
+              sudo systemctl start docker
             fi
             
             # Create application directory
             mkdir -p ~/mealplanner-app
             cd ~/mealplanner-app
             
-            # Stop and remove existing containers
+            # Stop and remove existing containers (use sudo since user might not be in docker group yet)
             if [ -f docker-compose.yml ]; then
-              docker-compose down || true
+              sudo docker-compose down || true
             fi
             
             # Clean up old images
-            docker system prune -f || true
+            sudo docker system prune -f || true
+          EOF
+            
+            # Stop and remove existing containers (use sudo since user might not be in docker group yet)
+            if [ -f docker-compose.yml ]; then
+              sudo docker-compose down || true
+            fi
+            
+            # Clean up old images
+            sudo docker system prune -f || true
           EOF
         
       - name: Copy application files to EC2

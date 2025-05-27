@@ -152,9 +152,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
             # Update system packages
             sudo apt-get update -y
-            
-            # Install Docker if not already installed
-            if ! command docker --version &> /dev/null; then
+              # Install Docker if not already installed
+            if ! command -v docker &> /dev/null; then
               sudo apt-get install -y ca-certificates curl
               sudo install -m 0755 -d /etc/apt/keyrings
               sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -178,6 +177,14 @@ jobs:
               sudo usermod -aG docker $USER
               
               echo "Docker installation completed"
+            fi
+            
+            # Install standalone docker-compose if not available
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Installing standalone docker-compose..."
+              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              echo "Docker Compose installation completed"
             fi
             
             # Start Docker service if not running
@@ -229,11 +236,11 @@ jobs:
             fi
             
             if curl -f http://localhost:3000 > /dev/null 2>&1; then
-              echo "✅ Client is running"
-            else
+              echo "✅ Client is running"            else
               echo "❌ Client health check failed"
               sudo docker-compose logs client
-              exit 1            fi
+              exit 1
+            fi
             
             echo "🚀 Deployment completed successfully!"
             echo "Server available at: http://${{ secrets.EC2_IP }}:5000"

@@ -1,11 +1,13 @@
-const request = require('supertest');
-const express = require('express');
+import request from 'supertest';
+import { describe, it, beforeEach, expect } from 'vitest';
 
 let app;
 
 describe('Meal Planner API', () => {
-  beforeEach(() => {
-    app = require('../server/index');
+  beforeEach(async () => {
+    // Dynamic import for ES modules
+    const { default: serverApp } = await import('./index.js');
+    app = serverApp;
   });
 
   it('GET /api/meals returns array', async () => {

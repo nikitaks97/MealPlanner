@@ -14,7 +14,6 @@ function App() {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [theme, setTheme] = useState('light');
   const [loading, setLoading] = useState(true);
-  const [animation, setAnimation] = useState('');
 
   useEffect(() => {
     fetch('/api/meals').then(res => res.json()).then(setMeals);

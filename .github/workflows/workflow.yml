@@ -115,7 +115,6 @@ jobs:
             -Dsonar.host.url=$SONAR_HOST_URL \
             -Dsonar.login=$SONAR_TOKEN
           echo "SonarQube scan completed successfully!"
-
   deploy:
     runs-on: ubuntu-latest
     needs: sonarqube
@@ -130,18 +129,27 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+        
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_IP }} >> ~/.ssh/known_hosts
-        
+          
+          # Add SSH key scanning with retry logic          for i in {1..3}; do
+            if ssh-keyscan -H ${{ secrets.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "SSH key scan successful"
+              break
+            else
+              echo "SSH key scan attempt $i failed, retrying..."
+              sleep 5
+            fi
+          done
       - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
             # Update system packages
-              #sudo apt-get update -y
+            sudo apt-get update -y
             
             # Install Docker if not already installed
             if ! command docker --version &> /dev/null; then
@@ -183,17 +191,7 @@ jobs:
             if [ -f docker-compose.yml ]; then
               sudo docker-compose down || true
             fi
-            
-            # Clean up old images
-            sudo docker system prune -f || true
-          EOF
-            
-            # Stop and remove existing containers (use sudo since user might not be in docker group yet)
-            if [ -f docker-compose.yml ]; then
-              sudo docker-compose down || true
-            fi
-            
-            # Clean up old images
+              # Clean up old images
             sudo docker system prune -f || true
           EOF
         
@@ -206,25 +204,23 @@ jobs:
         
       - name: Start application on EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'
-            cd ~/mealplanner-app
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_IP }} << 'EOF'            cd ~/mealplanner-app
             
-            # Build and start containers
-            docker-compose up --build -d
+            # Build and start containers using sudo
+            sudo docker-compose up --build -d
             
-            # Wait for containers to be healthy
+            # Wait for containers to start
             echo "Waiting for containers to start..."
             sleep 30
             
             # Check container status
-            docker-compose ps
+            sudo docker-compose ps
             
             # Test if application is running
             if curl -f http://localhost:5000/health > /dev/null 2>&1; then
-              echo "✅ Server is healthy and running"
-            else
+              echo "✅ Server is healthy and running"            else
               echo "❌ Server health check failed"
-              docker-compose logs server
+              sudo docker-compose logs server
               exit 1
             fi
             
@@ -232,7 +228,7 @@ jobs:
               echo "✅ Client is running"
             else
               echo "❌ Client health check failed"
-              docker-compose logs client
+              sudo docker-compose logs client
               exit 1
             fi
               echo "🚀 Deployment completed successfully!"
